@@ -32,49 +32,22 @@ void get_duration(const struct timespec* start, const struct timespec* end, long
     if (d_out != NULL) *d_out = s / 60 / 60 / 24;
 }
 
-void test(void) {
-    const long rows = 2;
-    const long cols = 5;
+void* gmp_malloc(size_t n) {
+    return malloc(n);
+}
 
-    mpq_t A[rows][cols];
-    mpq_t b[rows];
-    mpq_t c[cols];
-    mpq_t x[cols];
+void* gmp_realloc(void* p, size_t _, size_t n) {
+    return realloc(p, n);
+}
 
-    mat_init(rows, cols, A);
-    vec_init(rows, b);
-    vec_init(cols, c);
-    vec_init(cols, x);
-
-    mpq_set_si(A[0][0], 3, 1);
-    mpq_set_si(A[0][1], 2, 1);
-    mpq_set_si(A[0][2], 1, 1);
-    mpq_set_si(A[0][3], 1, 1);
-    mpq_set_si(A[0][4], 0, 1);
-    mpq_set_si(A[1][0], 2, 1);
-    mpq_set_si(A[1][1], 5, 1);
-    mpq_set_si(A[1][2], 3, 1);
-    mpq_set_si(A[1][3], 0, 1);
-    mpq_set_si(A[1][4], 1, 1);
-
-    mpq_set_si(b[0], 10, 1);
-    mpq_set_si(b[1], 15, 1);
-
-    mpq_set_si(c[0], -2, 1);
-    mpq_set_si(c[1], -3, 1);
-    mpq_set_si(c[2], -4, 1);
-    mpq_set_si(c[3], 0, 1);
-    mpq_set_si(c[4], 0, 1);
-
-    simplex_solve(rows, cols, A, b, c, x);
-    vec_print(cols, x, stdout);
-    printf("\n");
-
-    exit(0);
+void gmp_free(void* p, size_t _) {
+    free(p);
 }
 
 int main(int argc, char** argv) {
     // test();
+
+    mp_set_memory_functions(&gmp_malloc, &gmp_realloc, &gmp_free);
 
     FILE* stream = stdin;
 

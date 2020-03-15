@@ -3,6 +3,4 @@
 #include <stdbool.h>
 #include <gmp.h>
 
-void simplex_solve(long rows, long cols, mpq_t A[rows][cols], mpq_t b[rows], mpq_t c[cols], mpq_t x[cols]);
-void simplex_init(long rows, long cols, mpq_t A[rows][cols], mpq_t b[rows], mpq_t c[cols], mpq_t λ[rows], mpq_t s[cols - rows], mpq_t d[rows], mpq_t x[rows], long B[rows], long N[cols - rows], mpq_t lu[rows][rows], long pivots[rows], long *corrections, long **indices, mpq_t (**columns)[rows]);
-bool simplex_step(long rows, long cols, mpq_t A[rows][cols], mpq_t b[rows], mpq_t c[cols], mpq_t λ[rows], mpq_t s[cols - rows], mpq_t d[rows], mpq_t x[rows], long B[rows], long N[cols - rows], mpq_t lu[rows][rows], long pivots[rows], long *corrections, long **indices, mpq_t (**columns)[rows]);
+void simplex_solve(long size, long depth, mpq_t A[2 * size][3 * size], mpq_t b[2 * size], mpq_t c[2][3 * size], mpq_t λ[2 * size], mpq_t s[size], mpq_t d[2 * size], mpq_t x[2 * size], long B[2 * size], long N[size], mpq_t lu[2 * size][2 * size], long pivots[2 * size], long *corrections, long **indices, mpq_t (**columns)[2 * size]);

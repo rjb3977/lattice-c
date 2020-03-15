@@ -20,6 +20,18 @@ void vec_clear(long length, mpq_t dest[length]) {
     }
 }
 
+void vec_set(long length, mpq_t dest[length], mpq_t src[length]) {
+    for (long i = 0; i < length; ++i) {
+        mpq_set(dest[i], src[i]);
+    }
+}
+
+void vec_swap(long length, mpq_t dest[length], mpq_t src[length]) {
+    for (long i = 0; i < length; ++i) {
+        mpq_swap(dest[i], src[i]);
+    }
+}
+
 void vec_copy(long length, long dest_i, mpq_t dest[length], long src_i, mpq_t src[length]) {
     for (long i = 0; i < length; ++i) {
         mpq_set(dest[dest_i + i], src[src_i + i]);
@@ -79,6 +91,22 @@ void mat_clear(long rows, long cols, mpq_t dest[rows][cols]) {
     for (long row = 0; row < rows; ++row) {
         for (long col = 0; col < cols; ++col) {
             mpq_clear(dest[row][col]);
+        }
+    }
+}
+
+void mat_set(long rows, long cols, mpq_t dest[rows][cols], mpq_t src[rows][cols]) {
+    for (long row = 0; row < rows; ++row) {
+        for (long col = 0; col < cols; ++col) {
+            mpq_set(dest[row][col], src[row][col]);
+        }
+    }
+}
+
+void mat_swap(long rows, long cols, mpq_t dest[rows][cols], mpq_t src[rows][cols]) {
+    for (long row = 0; row < rows; ++row) {
+        for (long col = 0; col < cols; ++col) {
+            mpq_swap(dest[row][col], src[row][col]);
         }
     }
 }
@@ -330,6 +358,190 @@ void solve_utltp_corrected(long size, mpq_t lu[size][size], long pivots[size], l
     }
 
     solve_utltp(size, lu, pivots, x);
+    mpq_clear(temp[0]);
+    mpq_clear(temp[1]);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+void mat_lu_2(long size, long stride, mpq_t matrix[size][stride], long pivots[size]) {
+    mpq_t temp;
+    mpq_init(temp);
+
+    for (long i = 0; i < size; ++i) {
+        pivots[i] = i;
+    }
+
+    for (long i = 0; i < size; ++i) {
+        long pivotRow = -1;
+
+        for (long row = i; row < size; ++row) {
+            if (mpq_sgn(matrix[row][i]) != 0) {
+                pivotRow = row;
+                break;
+            }
+        }
+
+        if (pivotRow == -1) {
+            continue;
+        }
+
+        pivots[i] = pivotRow;
+
+        if (pivotRow != i) {
+            for (long col = 0; col < size; ++col) {
+                mpq_swap(matrix[i][col], matrix[pivotRow][col]);
+            }
+        }
+
+        for (long row = i + 1; row < size; ++row) {
+
+            mpq_div(matrix[row][i], matrix[row][i], matrix[i][i]);
+        }
+
+        for (long row = i + 1; row < size; ++row) {
+            for (long col = i + 1; col < size; ++col) {
+                mpq_mul(temp, matrix[row][i], matrix[i][col]);
+                mpq_sub(matrix[row][col], matrix[row][col], temp);
+            }
+        }
+    }
+
+    mpq_clear(temp);
+}
+
+void solve_p_2(long size, long pivots[size], mpq_t x[size]) {
+    for (long i = size - 1; i >= 0; --i) {
+        mpq_swap(x[i], x[pivots[i]]);
+    }
+}
+
+void solve_pt_2(long size, long pivots[size], mpq_t x[size]) {
+    for (long i = 0; i < size; ++i) {
+        mpq_swap(x[i], x[pivots[i]]);
+    }
+}
+
+void solve_l_2(long size, long stride, mpq_t lu[size][stride], mpq_t x[size]) {
+    mpq_t temp;
+    mpq_init(temp);
+
+    for (long row = 0; row < size; ++row) {
+        for (long col = 0; col < row; ++col) {
+            mpq_mul(temp, lu[row][col], x[col]);
+            mpq_sub(x[row], x[row], temp);
+        }
+    }
+
+    mpq_clear(temp);
+}
+
+void solve_lt_2(long size, long stride, mpq_t lu[size][stride], mpq_t x[size]) {
+    mpq_t temp;
+    mpq_init(temp);
+
+    for (long row = size - 1; row >= 0; --row) {
+        for (long col = size - 1; col > row; --col) {
+            mpq_mul(temp, lu[col][row], x[col]);
+            mpq_sub(x[row], x[row], temp);
+        }
+    }
+
+    mpq_clear(temp);
+}
+
+void solve_u_2(long size, long stride, mpq_t lu[size][stride], mpq_t x[size]) {
+    mpq_t temp;
+    mpq_init(temp);
+
+    for (long row = size - 1; row >= 0; --row) {
+        for (long col = size - 1; col > row; --col) {
+            mpq_mul(temp, lu[row][col], x[col]);
+            mpq_sub(x[row], x[row], temp);
+        }
+
+        mpq_div(x[row], x[row], lu[row][row]);
+    }
+
+    mpq_clear(temp);
+}
+
+void solve_ut_2(long size, long stride, mpq_t lu[size][stride], mpq_t x[size]) {
+    mpq_t temp;
+    mpq_init(temp);
+
+    for (long row = 0; row < size; ++row) {
+        for (long col = 0; col < row; ++col) {
+            mpq_mul(temp, lu[col][row], x[col]);
+            mpq_sub(x[row], x[row], temp);
+        }
+
+        mpq_div(x[row], x[row], lu[row][row]);
+    }
+
+    mpq_clear(temp);
+}
+
+void solve_ptlu_2(long size, long stride, mpq_t lu[size][stride], long pivots[size], mpq_t x[size]) {
+    solve_pt_2(size, pivots, x);
+    solve_l_2(size, stride, lu, x);
+    solve_u_2(size, stride, lu, x);
+}
+
+void solve_utltp_2(long size, long stride, mpq_t lu[size][stride], long pivots[size], mpq_t x[size]) {
+    solve_ut_2(size, stride, lu, x);
+    solve_lt_2(size, stride, lu, x);
+    solve_p_2(size, pivots, x);
+}
+
+void solve_ptlu_corrected_2(long size, long stride, mpq_t lu[size][stride], long pivots[size], long corrections, long indices[corrections], mpq_t columns[corrections][size], mpq_t x[size]) {
+    mpq_t temp;
+    mpq_init(temp);
+
+    solve_ptlu_2(size, stride, lu, pivots, x);
+
+    for (long i = 0; i < corrections; ++i) {
+        long index = indices[i];
+        mpq_t* column = columns[i];
+        mpq_ptr xp = x[index];
+
+        mpq_div(xp, xp, column[index]);
+
+        for (long row = 0; row < size; ++row) {
+            if (row != index) {
+                mpq_mul(temp, xp, column[row]);
+                mpq_sub(x[row], x[row], temp);
+            }
+        }
+    }
+
+    mpq_clear(temp);
+}
+
+void solve_utltp_corrected_2(long size, long stride, mpq_t lu[size][stride], long pivots[size], long corrections, long indices[corrections], mpq_t columns[corrections][size], mpq_t x[size]) {
+    mpq_t temp[2];
+    mpq_init(temp[0]);
+    mpq_init(temp[1]);
+
+    for (long i = corrections - 1; i >= 0; --i) {
+        long index = indices[i];
+        mpq_t* column = columns[i];
+
+        mpq_set_ui(temp[0], 0, 1);
+
+        for (long row = 0; row < size; ++row) {
+            if (row != index) {
+                mpq_mul(temp[1], x[row], column[row]);
+                mpq_add(temp[0], temp[0], temp[1]);
+            }
+        }
+
+        mpq_sub(x[index], x[index], temp[0]);
+        mpq_div(x[index], x[index], column[index]);
+    }
+
+    solve_utltp_2(size, stride, lu, pivots, x);
+
     mpq_clear(temp[0]);
     mpq_clear(temp[1]);
 }
