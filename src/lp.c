@@ -42,7 +42,10 @@ void simplex_solve(long rows, long cols, mpq_t A[rows][cols], mpq_t b[rows], mpq
     // solve system
     simplex_init(rows, cols, A, b, c, λ, s, d, _x, B, N, lu, pivots, &corrections, &indices, &columns);
 
-    while (!simplex_step(rows, cols, A, b, c, λ, s, d, _x, B, N, lu, pivots, &corrections, &indices, &columns));
+    long k = 1;
+    while (!simplex_step(rows, cols, A, b, c, λ, s, d, _x, B, N, lu, pivots, &corrections, &indices, &columns)) ++k;
+
+    printf("solve iterations:     %ld\n", k);
 
     // set output
     for (long i = 0; i < cols; ++i) {
@@ -105,17 +108,20 @@ void simplex_init(long rows, long cols, mpq_t A[rows][cols], mpq_t b[rows], mpq_
     }
 
     // Solve artificial system.
-    while (!simplex_step(rows, cols + rows, _A, b, _c, λ, _s, d, x, B, _N, lu, pivots, corrections, indices, columns));
+    long k = 1;
+    while (!simplex_step(rows, cols + rows, _A, b, _c, λ, _s, d, x, B, _N, lu, pivots, corrections, indices, columns)) ++k;
+
+    printf("pre-solve iterations: %ld\n", k);
 
     // Swap all artificial basic variables with real variables.
     // In effect, we're exiting the artificial variables and
     // entering the real variables along an edge of length zero.
-    for (long i = 0, j = 0; i < rows; ++i) {
+    for (long i = 0; i < rows; ++i) {
         if (B[i] >= cols) {
             assert(mpq_sgn(x[i]) == 0 && "no valid solution");
 
-            for (;; ++j) {
-                if (_N[j] < cols) {
+            for (long j = 0; j < cols; ++j) {
+                if (_N[j] < cols && mpq_sgn(_A[i][_N[j]]) != 0) {
                     long temp = B[i];
                     B[i] = _N[j];
                     _N[j] = temp;
