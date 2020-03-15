@@ -116,20 +116,8 @@ int main(int argc, char** argv) {
 
     get_duration(&start, &end, NULL, &elapsed_h, &elapsed_m, &elapsed_s, &elapsed_ms, NULL, NULL);
 
-    for (long i = 0; i < count; ++i)
-    {
-        for (long j = 0; j < count; ++j)
-        {
-            if (j != 0) {
-                printf(" ");
-            }
-
-            mpq_out_str(stdout, 10, results[i][j]);
-        }
-
-        printf("\n");
-    }
-
+    mat_print(count, dimensions, results, stdout);
+    printf("\n");
     printf("elapsed: %02ld:%02ld:%02ld.%03ld\n", elapsed_h, elapsed_m, elapsed_s, elapsed_ms);
     printf("count:   %ld\n", count);
 
