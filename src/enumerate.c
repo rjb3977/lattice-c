@@ -176,6 +176,7 @@ static void search(search_info_t *info) {
 
                 pthread_t thread;
                 pthread_create(&thread, NULL, search_thread, search_info_dup(info));
+                pthread_detach(thread);
             } else {
                 pthread_mutex_unlock(info->mutex);
                 search(info);
@@ -208,8 +209,8 @@ static void search_parallel(search_info_t *root) {
     *root->thread_count = 1;
 
     pthread_t thread;
-
     pthread_create(&thread, NULL, search_thread, search_info_dup(root));
+    pthread_detach(thread);
     pthread_mutex_lock(root->mutex);
 
     while (*root->thread_count > 0) {

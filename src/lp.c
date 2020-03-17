@@ -10,6 +10,7 @@
 #include "lp.h"
 
 static bool simplex_step(long rows, long cols, long stride, mpq_t A[rows][stride], mpq_t b[rows], mpq_t c[cols], mpq_t λ[rows], mpq_t s[cols - rows], mpq_t d[rows], mpq_t x[rows], long B[rows], long N[cols - rows], long lu_stride, mpq_t lu[rows][lu_stride], long pivots[rows], long *corrections, long **indices, mpq_t (**columns)[rows]) {
+
     mpq_t temp;
     mpq_init(temp);
 
@@ -31,12 +32,14 @@ static bool simplex_step(long rows, long cols, long stride, mpq_t A[rows][stride
     }
 
     // select entering, make this better maybe?
+    // this is now slightly better in that it won't cycle, i think
 
     long q = -1;
 
     for (long i = 0; i < cols - rows; ++i) {
-        if (mpq_sgn(s[i]) == -1 && (q == -1 || mpq_cmp(s[i], s[q]) < 0)) {
+        if (mpq_sgn(s[i]) == -1) {
             q = i;
+            break;
         }
     }
 
@@ -99,14 +102,6 @@ static bool simplex_step(long rows, long cols, long stride, mpq_t A[rows][stride
 }
 
 static void simplex_init(long size, long depth, mpq_t A[2 * size][3 * size], mpq_t b[2 * size], mpq_t c[2][3 * size], mpq_t λ[2 * size], mpq_t s[size], mpq_t d[2 * size], mpq_t x[2 * size], long B[2 * size], long N[size], mpq_t lu[2 * size][2 * size], long pivots[2 * size], long *corrections, long **indices, mpq_t (**columns)[size + depth]) {
-    // printf("A\n");
-    // mat_print(2 * size, 3 * size, A, stdout);
-    // printf("\n\n");
-
-    // printf("b\n");
-    // mat_print(2 * size, 1, (void*) b, stdout);
-    // printf("\n\n");
-
     for (long i = 0; i < size; ++i) {
         N[i] = i;
     }
