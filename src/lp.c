@@ -3,7 +3,6 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <gmp.h>
 
@@ -18,7 +17,7 @@ static bool simplex_step(long rows, long cols, long stride, mpq_t A[rows][stride
         mpq_set(λ[i], c[B[i]]);
     }
 
-    solve_utltp_corrected_2(rows, lu_stride, lu, pivots, *corrections, *indices, *columns, λ);
+    solve_utltp_corrected(rows, lu_stride, lu, pivots, *corrections, *indices, *columns, λ);
 
     for (long i = 0; i < cols - rows; ++i) {
         mpq_set_ui(s[i], 0, 1);
@@ -50,7 +49,7 @@ static bool simplex_step(long rows, long cols, long stride, mpq_t A[rows][stride
         mpq_set(d[i], A[i][N[q]]);
     }
 
-    solve_ptlu_corrected_2(rows, lu_stride, lu, pivots, *corrections, *indices, *columns, d);
+    solve_ptlu_corrected(rows, lu_stride, lu, pivots, *corrections, *indices, *columns, d);
 
     // select exiting, this is straightforward and optimal
 
@@ -179,7 +178,7 @@ static void simplex_init(long size, long depth, mpq_t A[2 * size][3 * size], mpq
         }
     }
 
-    mat_lu_2(size + depth, 2 * size, lu, pivots);
+    mat_lu(size + depth, 2 * size, lu, pivots);
 }
 
 void simplex_solve(long size, long depth, mpq_t A[2 * size][3 * size], mpq_t b[2 * size], mpq_t c[2][3 * size], mpq_t λ[2 * size], mpq_t s[size], mpq_t d[2 * size], mpq_t x[2 * size], long B[2 * size], long N[size], mpq_t lu[2 * size][2 * size], long pivots[2 * size], long *corrections, long **indices, mpq_t (**columns)[2 * size]) {

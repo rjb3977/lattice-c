@@ -8,6 +8,25 @@
 
 #include "la.h"
 
+mpq_t *vec_malloc(long length) {
+    mpq_t *dest = malloc(length * sizeof(mpq_t));
+    vec_init(length, dest);
+
+    return dest;
+}
+
+mpq_t *vec_dup(long length, const mpq_t *src) {
+    mpq_t *dest = vec_malloc(length);
+    vec_set(length, dest, src);
+
+    return dest;
+}
+
+void vec_free(long length, mpq_t *src) {
+    vec_clear(length, src);
+    free(src);
+}
+
 void vec_init(long length, mpq_t dest[length]) {
     for (long i = 0; i < length; ++i) {
         mpq_init(dest[i]);
@@ -77,6 +96,25 @@ void vec_print(long length, const mpq_t src[length], FILE* stream) {
 
         mpq_out_str(stream, 10, src[i]);
     }
+}
+
+mpq_t *mat_malloc(long rows, long cols) {
+    mpq_t *dest = malloc(rows * cols * sizeof(mpq_t));
+    mat_init(rows, cols, (void*) dest);
+
+    return dest;
+}
+
+mpq_t *mat_dup(long rows, long cols, const mpq_t *src) {
+    mpq_t *dest = mat_malloc(rows, cols);
+    mat_set(rows, cols, (void*) dest, (const void*) src);
+
+    return dest;
+}
+
+void mat_free(long rows, long cols, mpq_t *src) {
+    mat_clear(rows, cols, (void*) src);
+    free(src);
 }
 
 void mat_init(long rows, long cols, mpq_t dest[rows][cols]) {
@@ -181,9 +219,7 @@ void mat_print(long rows, long cols, const mpq_t src[rows][cols], FILE* stream) 
     }
 }
 
-// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-void mat_lu_2(long size, long stride, mpq_t matrix[size][stride], long pivots[size]) {
+void mat_lu(long size, long stride, mpq_t matrix[size][stride], long pivots[size]) {
     mpq_t temp;
     mpq_init(temp);
 
@@ -229,19 +265,19 @@ void mat_lu_2(long size, long stride, mpq_t matrix[size][stride], long pivots[si
     mpq_clear(temp);
 }
 
-void solve_p_2(long size, const long pivots[size], mpq_t x[size]) {
+void solve_p(long size, const long pivots[size], mpq_t x[size]) {
     for (long i = size - 1; i >= 0; --i) {
         mpq_swap(x[i], x[pivots[i]]);
     }
 }
 
-void solve_pt_2(long size, const long pivots[size], mpq_t x[size]) {
+void solve_pt(long size, const long pivots[size], mpq_t x[size]) {
     for (long i = 0; i < size; ++i) {
         mpq_swap(x[i], x[pivots[i]]);
     }
 }
 
-void solve_l_2(long size, long stride, const mpq_t lu[size][stride], mpq_t x[size]) {
+void solve_l(long size, long stride, const mpq_t lu[size][stride], mpq_t x[size]) {
     mpq_t temp;
     mpq_init(temp);
 
@@ -255,7 +291,7 @@ void solve_l_2(long size, long stride, const mpq_t lu[size][stride], mpq_t x[siz
     mpq_clear(temp);
 }
 
-void solve_lt_2(long size, long stride, const mpq_t lu[size][stride], mpq_t x[size]) {
+void solve_lt(long size, long stride, const mpq_t lu[size][stride], mpq_t x[size]) {
     mpq_t temp;
     mpq_init(temp);
 
@@ -269,7 +305,7 @@ void solve_lt_2(long size, long stride, const mpq_t lu[size][stride], mpq_t x[si
     mpq_clear(temp);
 }
 
-void solve_u_2(long size, long stride, const mpq_t lu[size][stride], mpq_t x[size]) {
+void solve_u(long size, long stride, const mpq_t lu[size][stride], mpq_t x[size]) {
     mpq_t temp;
     mpq_init(temp);
 
@@ -285,7 +321,7 @@ void solve_u_2(long size, long stride, const mpq_t lu[size][stride], mpq_t x[siz
     mpq_clear(temp);
 }
 
-void solve_ut_2(long size, long stride, const mpq_t lu[size][stride], mpq_t x[size]) {
+void solve_ut(long size, long stride, const mpq_t lu[size][stride], mpq_t x[size]) {
     mpq_t temp;
     mpq_init(temp);
 
@@ -301,23 +337,23 @@ void solve_ut_2(long size, long stride, const mpq_t lu[size][stride], mpq_t x[si
     mpq_clear(temp);
 }
 
-void solve_ptlu_2(long size, long stride, const mpq_t lu[size][stride], const long pivots[size], mpq_t x[size]) {
-    solve_pt_2(size, pivots, x);
-    solve_l_2(size, stride, lu, x);
-    solve_u_2(size, stride, lu, x);
+void solve_ptlu(long size, long stride, const mpq_t lu[size][stride], const long pivots[size], mpq_t x[size]) {
+    solve_pt(size, pivots, x);
+    solve_l(size, stride, lu, x);
+    solve_u(size, stride, lu, x);
 }
 
-void solve_utltp_2(long size, long stride, const mpq_t lu[size][stride], const long pivots[size], mpq_t x[size]) {
-    solve_ut_2(size, stride, lu, x);
-    solve_lt_2(size, stride, lu, x);
-    solve_p_2(size, pivots, x);
+void solve_utltp(long size, long stride, const mpq_t lu[size][stride], const long pivots[size], mpq_t x[size]) {
+    solve_ut(size, stride, lu, x);
+    solve_lt(size, stride, lu, x);
+    solve_p(size, pivots, x);
 }
 
-void solve_ptlu_corrected_2(long size, long stride, const mpq_t lu[size][stride], const long pivots[size], long corrections, const long indices[corrections], const mpq_t columns[corrections][size], mpq_t x[size]) {
+void solve_ptlu_corrected(long size, long stride, const mpq_t lu[size][stride], const long pivots[size], long corrections, const long indices[corrections], const mpq_t columns[corrections][size], mpq_t x[size]) {
     mpq_t temp;
     mpq_init(temp);
 
-    solve_ptlu_2(size, stride, lu, pivots, x);
+    solve_ptlu(size, stride, lu, pivots, x);
 
     for (long i = 0; i < corrections; ++i) {
         long index = indices[i];
@@ -337,7 +373,7 @@ void solve_ptlu_corrected_2(long size, long stride, const mpq_t lu[size][stride]
     mpq_clear(temp);
 }
 
-void solve_utltp_corrected_2(long size, long stride, const mpq_t lu[size][stride], const long pivots[size], long corrections, const long indices[corrections], const mpq_t columns[corrections][size], mpq_t x[size]) {
+void solve_utltp_corrected(long size, long stride, const mpq_t lu[size][stride], const long pivots[size], long corrections, const long indices[corrections], const mpq_t columns[corrections][size], mpq_t x[size]) {
     mpq_t temp[2];
     mpq_init(temp[0]);
     mpq_init(temp[1]);
@@ -359,7 +395,7 @@ void solve_utltp_corrected_2(long size, long stride, const mpq_t lu[size][stride
         mpq_div(x[index], x[index], column[index]);
     }
 
-    solve_utltp_2(size, stride, lu, pivots, x);
+    solve_utltp(size, stride, lu, pivots, x);
 
     mpq_clear(temp[0]);
     mpq_clear(temp[1]);

@@ -34,56 +34,18 @@ typedef struct {
     mpq_t *lu;              // mpq_t[2 * dimensions][2 * dimensions]
     long *pivots;           // long[2 * dimensions]
 
-    long corrections;       //
+    long corrections;
     long *indices;          // long[corrections]
     mpq_t (*columns);       // mpq_t[corrections][?]
 
-    long *count_out;        // long[1]
+    long *count_out;
     mpq_t (**results_out);  // mpq_t[*count_out][dimensions]
 
-    pthread_mutex_t *mutex; // pthread_mutex_t[1]
+    pthread_mutex_t *mutex;
     pthread_cond_t *finished;
     volatile long* thread_count;
     long thread_max;
 } search_info_t;
-
-static mpq_t *vec_malloc(long length) {
-    mpq_t *dest = malloc(length * sizeof(mpq_t));
-    vec_init(length, dest);
-
-    return dest;
-}
-
-static mpq_t *vec_dup(long length, const mpq_t *src) {
-    mpq_t *dest = vec_malloc(length);
-    vec_set(length, dest, src);
-
-    return dest;
-}
-
-static void vec_free(long length, mpq_t *src) {
-    vec_clear(length, src);
-    free(src);
-}
-
-static mpq_t *mat_malloc(long rows, long cols) {
-    mpq_t *dest = malloc(rows * cols * sizeof(mpq_t));
-    mat_init(rows, cols, (void*) dest);
-
-    return dest;
-}
-
-static mpq_t *mat_dup(long rows, long cols, const mpq_t *src) {
-    mpq_t *dest = mat_malloc(rows, cols);
-    mat_set(rows, cols, (void*) dest, (const void*) src);
-
-    return dest;
-}
-
-static void mat_free(long rows, long cols, mpq_t *src) {
-    mat_clear(rows, cols, (void*) src);
-    free(src);
-}
 
 static search_info_t *search_info_dup(const search_info_t* src) {
     search_info_t* dest = malloc(sizeof(search_info_t));
@@ -146,23 +108,6 @@ static void search_info_free(search_info_t* src) {
 
     free(src);
 }
-
-        // search_info_t* next = search_info_dup(start);
-
-        // if (mpq_sgn(temp) >= 0) {
-        //     vec_set(next->dimensions, next->A + (next->dimensions + next->depth) * 3 * next->dimensions, next->transform + next->depth * 2 * next->dimensions);
-        //     mpq_set(next->b[start->dimensions + next->depth], temp);
-        // } else {
-        //     vec_neg(next->dimensions, next->A + (next->dimensions + next->depth) * 3 * next->dimensions, next->transform + next->depth * 2 * next->dimensions);
-        //     mpq_neg(next->b[next->dimensions + next->depth], temp);
-        // }
-
-        // mpq_set_z(next->fixed[next->depth], min);
-        // next->depth += 1;
-
-        // *count += 1;
-        // *nexts = realloc(*nexts, *count * sizeof(search_info_t));
-        // (*nexts)[*count - 1] = next;
 
 static void* search_thread(void*);
 
@@ -278,8 +223,11 @@ void enumerate(long dimensions, mpq_t basis[dimensions][dimensions], mpq_t lower
     root->dimensions = dimensions;
     root->depth = 0;
 
-    //root->transform = mat_malloc(dimensions, 2 * dimensions);
-    //root->offset = vec_malloc(dimensions);
+    mpq_t *transform = mat_malloc(dimensions, 2 * dimensions);
+    mpq_t *offset = vec_malloc(dimensions);
+
+    root->transform = transform;
+    root->offset = offset;
     root->fixed = vec_malloc(dimensions);
 
     root->A = mat_malloc(2 * dimensions, 3 * dimensions);
@@ -310,24 +258,18 @@ void enumerate(long dimensions, mpq_t basis[dimensions][dimensions], mpq_t lower
     pthread_mutex_init(root->mutex, NULL);
     pthread_cond_init(root->finished, NULL);
 
-    mpq_t *transform = mat_malloc(dimensions, 2 * dimensions);
-    mpq_t *offset = vec_malloc(dimensions);
-
-    root->transform = transform;
-    root->offset = offset;
-
     mat_copy(dimensions, dimensions, 0, 0, 2 * dimensions, (void*) root->lu, 0, 0, dimensions, basis);
-    mat_lu_2(dimensions, 2 * dimensions, (void*) root->lu, root->pivots);
+    mat_lu(dimensions, 2 * dimensions, (void*) root->lu, root->pivots);
 
     // inverse * identity
     for (long i = 0; i < dimensions; ++i) {
         mpq_set_ui(transform[i * 2 * dimensions + i], 1, 1);
-        solve_ptlu_2(dimensions, 2 * dimensions, (void*) root->lu, root->pivots, transform + i * 2 * dimensions);
+        solve_ptlu(dimensions, 2 * dimensions, (void*) root->lu, root->pivots, transform + i * 2 * dimensions);
     }
 
     // inverse * upper
     vec_set(dimensions, offset, upper);
-    solve_utltp_2(dimensions, 2 * dimensions, (void*) root->lu, root->pivots, offset);
+    solve_utltp(dimensions, 2 * dimensions, (void*) root->lu, root->pivots, offset);
 
     // A = [I|I|0]
     //     [0|0|I]
@@ -356,69 +298,3 @@ void enumerate(long dimensions, mpq_t basis[dimensions][dimensions], mpq_t lower
 
     search_info_free(root);
 }
-
-// static void search_old(long dimensions, long depth, mpq_t transform[dimensions][2 * dimensions], mpq_t offset[dimensions], mpq_t fixed[dimensions], mpq_t A[2 * dimensions][3 * dimensions], mpq_t b[2 * dimensions], mpq_t c[2][3 * dimensions], mpq_t λ[2 * dimensions], mpq_t s[dimensions], mpq_t d[2 * dimensions], mpq_t x[2 * dimensions], long B[2 * dimensions], long N[dimensions], mpq_t lu[2 * dimensions][2 * dimensions], long pivots[2 * dimensions], long *corrections, long **indices, mpq_t(**columns), long *count_out, mpq_t (**results_out)[dimensions]) {
-//     if (depth == dimensions) {
-//         printf("found: ");
-//         vec_print(dimensions, fixed, stdout);
-//         printf("\n");
-
-//         *count_out += 1;
-//         *results_out = realloc(*results_out, *count_out * sizeof(mpq_t[dimensions]));
-
-//         vec_init(dimensions, (*results_out)[*count_out - 1]);
-//         vec_set(dimensions, (*results_out)[*count_out - 1], fixed);
-//     } else {
-//         mpq_t temp;
-//         mpz_t min;
-//         mpz_t max;
-
-//         mpq_init(temp);
-//         mpz_init(min);
-//         mpz_init(max);
-
-//         // lower bound
-//         vec_neg(dimensions, c[0], transform[depth]);
-//         simplex_solve(dimensions, depth, A, b, c, λ, s, d, x, B, N, lu, pivots, corrections, indices, (void*) columns);
-
-//         vec_dot(2 * dimensions, temp, transform[depth], x);
-//         mpq_sub(temp, offset[depth], temp);
-//         mpz_cdiv_q(min, mpq_numref(temp), mpq_denref(temp));
-
-//         // upper bound
-//         vec_set(dimensions, c[0], transform[depth]);
-//         simplex_solve(dimensions, depth, A, b, c, λ, s, d, x, B, N, lu, pivots, corrections, indices, (void*) columns);
-
-//         vec_dot(2 * dimensions, temp, transform[depth], x);
-//         mpq_sub(temp, offset[depth], temp);
-//         mpz_fdiv_q(max, mpq_numref(temp), mpq_denref(temp));
-
-//         // rhs of new row of A
-//         mpq_set_z(temp, min);
-//         mpq_sub(temp, offset[depth], temp);
-
-//         // printf("%ld: ", depth);
-//         // mpz_out_str(stdout, 10, min);
-//         // printf(" -> ");
-//         // mpz_out_str(stdout, 10, max);
-//         // printf("\n");
-
-//         // min <= max, min += 1, rhs -= 1
-//         for (; mpz_cmp(min, max) <= 0; mpz_add_ui(min, min, 1), mpz_sub(mpq_numref(temp), mpq_numref(temp), mpq_denref(temp))) {
-//             if (mpq_sgn(temp) >= 0) {
-//                 vec_set(dimensions, A[dimensions + depth], transform[depth]);
-//                 mpq_set(b[dimensions + depth], temp);
-//             } else {
-//                 vec_neg(dimensions, A[dimensions + depth], transform[depth]);
-//                 mpq_neg(b[dimensions + depth], temp);
-//             }
-
-//             mpq_set_z(fixed[depth], min);
-//             search_old(dimensions, depth + 1, transform, offset, fixed, A, b, c, λ, s, d, x, B, N, lu, pivots, corrections, indices, columns, count_out, results_out);
-//         }
-
-//         mpq_clear(temp);
-//         mpz_clear(min);
-//         mpz_clear(max);
-//     }
-// }
