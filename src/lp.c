@@ -148,6 +148,7 @@ static void simplex_init(long size, long depth, mpq_t A[2 * size][3 * size], mpq
                     B[i] = N[j];
                     N[j] = temp;
                     swapped = true;
+                    break;
                 }
             }
 
