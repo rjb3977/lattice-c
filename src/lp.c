@@ -9,7 +9,7 @@
 #include "la.h"
 #include "lp.h"
 
-static bool simplex_step(long rows, long cols, long stride, mpq_t A[rows][stride], mpq_t b[rows], mpq_t c[cols], mpq_t λ[rows], mpq_t s[cols - rows], mpq_t d[rows], mpq_t x[rows], long B[rows], long N[cols - rows], long lu_stride, mpq_t lu[rows][lu_stride], long pivots[rows], long *corrections, long **indices, mpq_t (**columns)[rows]) {
+static bool simplex_step(long rows, long cols, long stride, mpq_t A[rows][stride], mpq_t b[rows], mpq_t c[cols], mpq_t λ[rows], mpq_t s[cols - rows], mpq_t d[rows], mpq_t x[rows], long B[rows], long N[cols - rows], long lu_stride, mpq_t lu[rows][lu_stride], long pivots[rows], long *corrections, long **indices, mpq_t (**columns)[rows], bool use_bland) {
 
     mpq_t temp;
     mpq_init(temp);
@@ -37,9 +37,12 @@ static bool simplex_step(long rows, long cols, long stride, mpq_t A[rows][stride
     long q = -1;
 
     for (long i = 0; i < cols - rows; ++i) {
-        if (mpq_sgn(s[i]) == -1) {
+        if (mpq_sgn(s[i]) == -1 && (q == -1 || mpq_cmp(s[i], s[q]) == -1)) {
             q = i;
-            break;
+
+            if (use_bland) {
+                break;
+            }
         }
     }
 
@@ -126,7 +129,15 @@ static void simplex_init(long size, long depth, mpq_t A[2 * size][3 * size], mpq
 
     vec_set(size + depth, x, b);
 
-    while (!simplex_step(size + depth, 2 * size + depth, 3 * size, A, b, c[1], λ, s, d, x, B, N, 2 * size, lu, pivots, corrections, indices, columns));
+    bool use_bland = false;
+
+    for (long i = 0; i < size + depth; ++i) {
+        if (mpq_sgn(b[i]) == 0) {
+            use_bland = true;
+        }
+    }
+
+    while (!simplex_step(size + depth, 2 * size + depth, 3 * size, A, b, c[1], λ, s, d, x, B, N, 2 * size, lu, pivots, corrections, indices, columns, use_bland));
 
     // Swap all artificial basic variables with real variables.
     // In effect, we're exiting the artificial variables and
@@ -185,7 +196,15 @@ static void simplex_init(long size, long depth, mpq_t A[2 * size][3 * size], mpq
 void simplex_solve(long size, long depth, mpq_t A[2 * size][3 * size], mpq_t b[2 * size], mpq_t c[2][3 * size], mpq_t λ[2 * size], mpq_t s[size], mpq_t d[2 * size], mpq_t x[2 * size], long B[2 * size], long N[size], mpq_t lu[2 * size][2 * size], long pivots[2 * size], long *corrections, long **indices, mpq_t (**columns)[2 * size]) {
     simplex_init(size, depth, A, b, c, λ, s, d, x, B, N, lu, pivots, corrections, indices, columns);
 
-    while (!simplex_step(size + depth, 2 * size, 3 * size, A, b, c[0], λ, s, d, x, B, N, 2 * size, lu, pivots, corrections, indices, columns));
+    bool use_bland = false;
+
+    for (long i = 0; i < size + depth; ++i) {
+        if (mpq_sgn(b[i]) == 0) {
+            use_bland = true;
+        }
+    }
+
+    while (!simplex_step(size + depth, 2 * size, 3 * size, A, b, c[0], λ, s, d, x, B, N, 2 * size, lu, pivots, corrections, indices, columns, use_bland));
 
     // Set output
     for (long i = 0; i < 2 * size; ++i) {
