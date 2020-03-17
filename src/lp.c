@@ -140,13 +140,18 @@ static void simplex_init(long size, long depth, mpq_t A[2 * size][3 * size], mpq
         if (B[i] >= 2 * size) {
             assert(mpq_sgn(x[i]) == 0 && "artificial variable is nonzero");
 
-            for (long j = 0; j < 2 * size; ++j) {
+            bool swapped = false;
+
+            for (long j = 0; j < size; ++j) {
                 if (N[j] < 2 * size && mpq_sgn(A[i][N[j]]) != 0) {
                     long temp = B[i];
                     B[i] = N[j];
                     N[j] = temp;
+                    swapped = true;
                 }
             }
+
+            assert(swapped && "couldn't replace artificial variable in basis");
         }
     }
 
