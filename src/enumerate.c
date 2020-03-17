@@ -215,6 +215,8 @@ static void search_parallel(search_info_t *root) {
     while (*root->thread_count > 0) {
         pthread_cond_wait(root->finished, root->mutex);
     }
+
+    pthread_mutex_unlock(root->mutex);
 }
 
 void enumerate(long dimensions, mpq_t basis[dimensions][dimensions], mpq_t lower[dimensions], mpq_t upper[dimensions], long *count_out, mpq_t (**results_out)[dimensions], long thread_max) {
