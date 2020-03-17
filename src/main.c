@@ -7,13 +7,14 @@
 #include <string.h>
 #include <time.h>
 #include <gmp.h>
+#include <unistd.h>
 
 #include "parse.h"
 #include "enumerate.h"
 #include "la.h"
 #include "lp.h"
 
-void get_duration(const struct timespec* start, const struct timespec* end, long* d_out, long* h_out, long* m_out, long* s_out, long* ms_out, long* us_out, long* ns_out) {
+static void get_duration(const struct timespec* start, const struct timespec* end, long* d_out, long* h_out, long* m_out, long* s_out, long* ms_out, long* us_out, long* ns_out) {
     long s = end->tv_sec - start->tv_sec;
     long ns = end->tv_nsec - start->tv_nsec;
 
@@ -32,23 +33,7 @@ void get_duration(const struct timespec* start, const struct timespec* end, long
     if (d_out != NULL) *d_out = s / 60 / 60 / 24;
 }
 
-void* gmp_malloc(size_t n) {
-    return malloc(n);
-}
-
-void* gmp_realloc(void* p, size_t _, size_t n) {
-    return realloc(p, n);
-}
-
-void gmp_free(void* p, size_t _) {
-    free(p);
-}
-
 int main(int argc, char** argv) {
-    // test();
-
-    mp_set_memory_functions(&gmp_malloc, &gmp_realloc, &gmp_free);
-
     FILE* stream = stdin;
 
     if (argc >= 2) {
@@ -75,12 +60,14 @@ int main(int argc, char** argv) {
     long count = 0;
     mpq_t (*results)[dimensions] = NULL;
 
+    long threads = sysconf(_SC_NPROCESSORS_ONLN);
+
     struct timespec start;
     struct timespec end;
 
-    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
-    enumerate(dimensions, (void*) basis, (void*) lower, (void*) upper, &count, &results);
-    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    enumerate(dimensions, (void*) basis, (void*) lower, (void*) upper, &count, &results, threads);
+    clock_gettime(CLOCK_MONOTONIC, &end);
 
     long elapsed_h;
     long elapsed_m;

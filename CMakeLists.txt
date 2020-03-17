@@ -20,11 +20,11 @@ file(GLOB_RECURSE sources ${src_dir}/*.c)
 add_executable(${project_name} ${sources})
 
 set_property(TARGET ${project_name} PROPERTY C_STANDARD 11)
-target_link_libraries(${project_name} gmp tcmalloc_minimal)
+target_link_libraries(${project_name} gmp pthread)
 
-set (CMAKE_C_FLAGS_DEBUG      "${CMAKE_C_FLAGS_DEBUG}      -lto -O3")
-set (CMAKE_CXX_FLAGS_DEBUG    "${CMAKE_CXX_FLAGS_DEBUG}    -lto -O3")
-set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -lto -O3")
+set (CMAKE_C_FLAGS_DEBUG      "${CMAKE_C_FLAGS_DEBUG}      ")
+set (CMAKE_CXX_FLAGS_DEBUG    "${CMAKE_CXX_FLAGS_DEBUG}    ")
+set (CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} ")
 
 add_custom_command(
     TARGET ${project_name} PRE_LINK

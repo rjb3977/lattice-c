@@ -3,4 +3,4 @@
 
 #include <gmp.h>
 
-void enumerate(long dimensions, mpq_t basis[dimensions][dimensions], mpq_t lower[dimensions], mpq_t upper[dimensions], long* count_out, mpq_t (**results_out)[dimensions]);
+void enumerate(long dimensions, mpq_t basis[dimensions][dimensions], mpq_t lower[dimensions], mpq_t upper[dimensions], long* count_out, mpq_t (**results_out)[dimensions], long min_threads);
