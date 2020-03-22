@@ -2,6 +2,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdio.h>
-#include <gmp.h>
 
-bool parse_data(FILE *stream, long *dimensions_out, mpq_t **basis_out, mpq_t **lower_out, mpq_t **upper_out);
+#include "la.h"
+
+bool parse_data(FILE* stream, matrix_t** basis_out, matrix_t** lower_out, matrix_t** upper_out);

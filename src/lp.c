@@ -1,228 +1,229 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <assert.h>
+#include <gmp.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <gmp.h>
 
 #include "la.h"
-#include "lp.h"
 
-static bool simplex_step(long rows, long cols, long stride, mpq_t A[rows][stride], mpq_t b[rows], mpq_t c[cols], mpq_t λ[rows], mpq_t s[cols - rows], mpq_t d[rows], mpq_t x[rows], long B[rows], long N[cols - rows], long lu_stride, mpq_t lu[rows][lu_stride], long pivots[rows], long *corrections, long **indices, mpq_t (**columns)[rows], bool use_bland) {
+static void lp_pivot(matrix_t* table, long* B, long* N, long variables, long constraints, long entering, long exiting) {
+    const long a = matrix_rows(table) - constraints;
+    const long b = matrix_cols(table) - 1;
 
-    mpq_t temp;
-    mpq_init(temp);
+    assert(0 <= entering && entering < b);
+    assert(0 <= exiting && exiting < constraints);
 
-    for (long i = 0; i < rows; ++i) {
-        mpq_set(λ[i], c[B[i]]);
-    }
+    mpq_t t0;
+    mpq_init(t0);
 
-    solve_utltp_corrected(rows, lu_stride, lu, pivots, *corrections, *indices, *columns, λ);
+    mpq_t t1;
+    mpq_init(t1);
 
-    for (long i = 0; i < cols - rows; ++i) {
-        mpq_set_ui(s[i], 0, 1);
-
-        for (long j = 0; j < rows; ++j) {
-            mpq_mul(temp, λ[j], A[j][N[i]]);
-            mpq_add(s[i], s[i], temp);
+    for (long col = 0; col < matrix_cols(table); ++col) {
+        if (col == entering) {
+            continue;
         }
 
-        mpq_sub(s[i], c[N[i]], s[i]);
+        mpq_ptr x = matrix_at(table, a + exiting, col);
+        mpq_ptr y = matrix_at(table, a + exiting, entering);
+
+        mpq_div(x, x, y);
     }
 
-    // select entering, make this better maybe?
-    // this is now slightly better in that it won't cycle, i think
+    for (long row = 0; row < matrix_rows(table); ++row) {
+        if (row == a + exiting) {
+            continue;
+        }
 
-    long q = -1;
+        mpq_ptr x = matrix_at(table, row, entering);
 
-    for (long i = 0; i < cols - rows; ++i) {
-        if (mpq_sgn(s[i]) == -1 && (q == -1 || mpq_cmp(s[i], s[q]) == -1)) {
-            q = i;
+        for (long col = 0; col < matrix_cols(table); ++col) {
+            if (col == entering) {
+                continue;
+            }
 
-            if (use_bland) {
+            mpq_ptr y = matrix_at(table, row, col);
+
+            mpq_mul(t0, x, matrix_at(table, a + exiting, col));
+            mpq_sub(y, y, t0);
+        }
+
+        mpq_div(x, x, matrix_at(table, a + exiting, entering));
+        mpq_neg(x, x);
+    }
+
+    mpq_inv(matrix_at(table, a + exiting, entering), matrix_at(table, a + exiting, entering));
+
+    long _entering = N[entering];
+    long _exiting = B[exiting];
+
+    N[entering] = _exiting;
+    B[exiting] = _entering;
+
+    mpq_clear(t0);
+    mpq_clear(t1);
+}
+
+// B: row    -> variable
+// N: column -> variable
+static bool lp_step(matrix_t* table, long* B, long* N, long variables, long constraints) {
+    const long a = matrix_rows(table) - constraints; // first row of A
+    const long b = matrix_cols(table) - 1;           // first col of b
+
+    mpq_t t0;
+    mpq_init(t0);
+
+    mpq_t t1;
+    mpq_init(t1);
+
+    bool bland = false;
+
+    for (long row = 0; row < constraints; ++row) {
+        if (mpq_sgn(matrix_at(table, a + row, b)) == 0) {
+            bland = true;
+            break;
+        }
+    }
+
+    // column, [0, b)
+    long entering = -1;
+
+    for (long col = 0; col < b; ++col) {
+        mpq_ptr x = matrix_at(table, 0, col);
+
+        if (mpq_sgn(x) > 0 && (entering == -1 || mpq_cmp(x, t0) > 0)) {
+            entering = col;
+            mpq_set(t0, x);
+
+            if (bland) {
                 break;
             }
         }
     }
 
-    if (q == -1) {
-        mpq_clear(temp);
+    if (entering == -1) {
+        mpq_clear(t0);
+        mpq_clear(t1);
+
         return true;
     }
 
-    for (long i = 0; i < rows; ++i) {
-        mpq_set(d[i], A[i][N[q]]);
-    }
+    // row, [0, constraints]
+    long exiting = -1;
 
-    solve_ptlu_corrected(rows, lu_stride, lu, pivots, *corrections, *indices, *columns, d);
+    for (long row = 0; row < constraints; ++row) {
+        mpq_ptr x = matrix_at(table, a + row, entering);
+        mpq_ptr y = matrix_at(table, a + row, b);
 
-    // select exiting, this is straightforward and optimal
+        if (mpq_sgn(x) > 0) {
+            mpq_div(t1, y, x);
 
-    long p = -1;
-    mpq_t xq;
-    mpq_init(xq);
-
-    for (long i = 0; i < rows; ++i) {
-        if (mpq_sgn(d[i]) == 1) {
-            mpq_div(temp, x[i], d[i]);
-
-            if (p == -1 || mpq_cmp(temp, xq) < 0) {
-                mpq_set(xq, temp);
-                p = i;
+            if (exiting == -1 || mpq_cmp(t1, t0) < 0) {
+                exiting = row;
+                mpq_set(t0, t1);
             }
         }
     }
 
-    assert(p != -1 && "solution is unbounded");
+    assert(exiting != -1);
 
-    for (long i = 0; i < rows; ++i) {
-        mpq_mul(temp, xq, d[i]);
-        mpq_sub(x[i], x[i], temp);
-    }
+    mpq_clear(t0);
+    mpq_clear(t1);
 
-    mpq_set(x[p], xq);
+    // printf("entering, exiting: %ld, %ld\n", entering, exiting);
 
-    long Bp = B[p];
-    long Nq = N[q];
-
-    B[p] = Nq;
-    N[q] = Bp;
-
-    *corrections += 1;
-    *indices = realloc(*indices, *corrections * sizeof(long));
-    *columns = realloc(*columns, *corrections * sizeof(mpq_t[rows]));
-
-    (*indices)[*corrections - 1] = p;
-
-    vec_init(rows, (*columns)[*corrections - 1]);
-    vec_set(rows, (*columns)[*corrections - 1], d);
-
-    mpq_clear(xq);
-    mpq_clear(temp);
+    lp_pivot(table, B, N, variables, constraints, entering, exiting);
 
     return false;
 }
 
-static void simplex_init(long size, long depth, mpq_t A[2 * size][3 * size], mpq_t b[2 * size], mpq_t c[2][3 * size], mpq_t λ[2 * size], mpq_t s[size], mpq_t d[2 * size], mpq_t x[2 * size], long B[2 * size], long N[size], mpq_t lu[2 * size][2 * size], long pivots[2 * size], long *corrections, long **indices, mpq_t (**columns)[size + depth]) {
-    for (long i = 0; i < size; ++i) {
-        N[i] = i;
+void lp_solve(matrix_t* dest, const matrix_t* initial_table, long dimensions, long depth) {
+    assert(matrix_rows(dest) == dimensions);
+    assert(matrix_cols(dest) == 1);
+
+    matrix_t* table = matrix_alloc(2 + dimensions + depth, dimensions + 1);
+
+    // row [1, 2 + size + depth) (Z and A)
+    for (long row = 1; row < 2 + dimensions + depth; ++row) {
+        for (long col = 0; col < dimensions + 1; ++col) {
+            mpq_set(matrix_at(table, row, col), matrix_cat(initial_table, row - 1, col));
+        }
     }
 
-    for (long i = 0; i < size + depth; ++i) {
-        B[i] = size + i;
+    // row 0 (for finding initial basis)
+    for (long row = dimensions; row < dimensions + depth; ++row) {
+        for (long col = 0; col < dimensions + 1; ++col) {
+            mpq_add(matrix_at(table, 0, col), matrix_at(table, 0, col), matrix_at(table, 2 + row, col));
+        }
     }
 
-    for (long i = 0; i < size + depth; ++i) {
-        for (long j = 0; j < size + depth; ++j) {
-            if (i == j) {
-                mpq_set_ui(lu[i][j], 1, 1);
-            } else {
-                mpq_set_ui(lu[i][j], 0, 1);
+    long B[dimensions + depth];
+    long N[dimensions];
+
+    for (long i = 0; i < 2 * dimensions + depth; ++i) {
+        if (i < dimensions) {
+            N[i] = i;
+        } else {
+            B[i - dimensions] = i;
+        }
+    }
+
+    while (!lp_step(table, B, N, 2 * dimensions + depth, dimensions + depth)) {
+        //
+    }
+
+    for (long row = 0; row < dimensions + depth; ++row) {
+        if (B[row] >= 2 * dimensions) {
+            assert(mpq_sgn(matrix_at(table, 2 + row, dimensions)) == 0);
+
+            for (long col = 0; col < dimensions; ++col) {
+                if (N[col] < 2 * dimensions && mpq_sgn(matrix_at(table, 2 + row, col)) != 0) {
+                    lp_pivot(table, B, N, 2 * dimensions + depth, dimensions + depth, col, row);
+                }
             }
         }
     }
 
-    for (long i = 0; i < size + depth; ++i) {
-        pivots[i] = i;
-    }
+    for (long c0 = 0, c1 = dimensions - 1; c0 < dimensions - depth; ++c0) {
+        if (N[c0] >= 2 * dimensions) {
+            for (;; --c1) {
+                if (N[c1] < 2 * dimensions) {
+                    for (long row = 0; row < 2 + dimensions + depth; ++row) {
+                        mpq_swap(matrix_at(table, row, c0), matrix_at(table, row, c1));
+                    }
 
-    vec_set(size + depth, x, b);
+                    long temp = N[c0];
+                    N[c0] = N[c1];
+                    N[c1] = temp;
 
-    bool use_bland = false;
-
-    for (long i = 0; i < size + depth; ++i) {
-        if (mpq_sgn(b[i]) == 0) {
-            use_bland = true;
-        }
-    }
-
-    while (!simplex_step(size + depth, 2 * size + depth, 3 * size, A, b, c[1], λ, s, d, x, B, N, 2 * size, lu, pivots, corrections, indices, columns, use_bland));
-
-    // Swap all artificial basic variables with real variables.
-    // In effect, we're exiting the artificial variables and
-    // entering the real variables along an edge of length zero.
-    for (long i = 0; i < size + depth; ++i) {
-        if (B[i] >= 2 * size) {
-            assert(mpq_sgn(x[i]) == 0 && "artificial variable is nonzero");
-
-            bool swapped = false;
-
-            for (long j = 0; j < size; ++j) {
-                if (N[j] < 2 * size && mpq_sgn(A[i][N[j]]) != 0) {
-                    long temp = B[i];
-                    B[i] = N[j];
-                    N[j] = temp;
-                    swapped = true;
                     break;
                 }
             }
-
-            assert(swapped && "couldn't replace artificial variable in basis");
         }
     }
 
-    // Find all real nonbasic variables.
-    for (long i = 0, j = 0; i < size - depth; ++i, ++j) {
-        for (;; ++j) {
-            if (N[j] < 2 * size) {
-                long temp = N[i];
-                N[i] = N[j];
-                N[j] = temp;
-                break;
-            }
+    for (long row = 0; row < 2 + dimensions + depth; ++row) {
+        mpq_swap(matrix_at(table, row, dimensions - depth), matrix_at(table, row, dimensions));
+    }
+
+    matrix_t* view = matrix_view(table, 1, 0, 1 + dimensions + depth, dimensions - depth + 1);
+
+    while (!lp_step(view, B, N, 2 * dimensions, dimensions + depth)) {
+        //
+    }
+
+    for (long i = 0; i < dimensions; ++i) {
+        mpq_set_ui(matrix_at(dest, i, 0), 0, 1);
+    }
+
+    for (long i = 0; i < dimensions + depth; ++i) {
+        if (B[i] < dimensions) {
+            mpq_set(matrix_at(dest, B[i], 0), matrix_at(table, 2 + i, dimensions - depth));
         }
     }
 
-    // Clear LU updates.
-    mat_clear(*corrections, size + depth, *columns);
-    free(*indices);
-    free(*columns);
-
-    *corrections = 0;
-    *indices = NULL;
-    *columns = NULL;
-
-    // Reset basis LU.
-    for (long row = 0; row < size + depth; ++row) {
-        for (long col = 0; col < size + depth; ++col) {
-            mpq_set(lu[row][col], A[row][B[col]]);
-        }
-    }
-
-    mat_lu(size + depth, 2 * size, lu, pivots);
-}
-
-void simplex_solve(long size, long depth, mpq_t A[2 * size][3 * size], mpq_t b[2 * size], mpq_t c[2][3 * size], mpq_t λ[2 * size], mpq_t s[size], mpq_t d[2 * size], mpq_t x[2 * size], long B[2 * size], long N[size], mpq_t lu[2 * size][2 * size], long pivots[2 * size], long *corrections, long **indices, mpq_t (**columns)[2 * size]) {
-    simplex_init(size, depth, A, b, c, λ, s, d, x, B, N, lu, pivots, corrections, indices, columns);
-
-    bool use_bland = false;
-
-    for (long i = 0; i < size + depth; ++i) {
-        if (mpq_sgn(b[i]) == 0) {
-            use_bland = true;
-        }
-    }
-
-    while (!simplex_step(size + depth, 2 * size, 3 * size, A, b, c[0], λ, s, d, x, B, N, 2 * size, lu, pivots, corrections, indices, columns, use_bland));
-
-    // Set output
-    for (long i = 0; i < 2 * size; ++i) {
-        mpq_set_ui(d[i], 0, 1);
-    }
-
-    for (long i = 0; i < size + depth; ++i) {
-        mpq_set(d[B[i]], x[i]);
-    }
-
-    vec_set(2 * size, x, d);
-
-    // Clear LU updates
-    mat_clear(*corrections, size + depth, *columns);
-    free(*indices);
-    free(*columns);
-
-    *corrections = 0;
-    *indices = NULL;
-    *columns = NULL;
+    matrix_free(view);
+    matrix_free(table);
 }

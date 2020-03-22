@@ -31,6 +31,51 @@ static void get_duration(const struct timespec* start, const struct timespec* en
     if (d_out != NULL) *d_out = s / 60 / 60 / 24;
 }
 
+static void test(void) {
+    matrix_t* table = matrix_alloc(6, 5);
+    matrix_t* x = matrix_alloc(4, 1);
+
+    mpq_set_si(matrix_at(table, 0, 0), 1, 2);
+    mpq_set_si(matrix_at(table, 0, 1), 0, 1);
+    mpq_set_si(matrix_at(table, 0, 2), -1, 2);
+    mpq_set_si(matrix_at(table, 0, 3), 1, 2);
+    mpq_set_si(matrix_at(table, 0, 4), 0, 1);
+
+    mpq_set_si(matrix_at(table, 1, 0), 1, 1);
+    mpq_set_si(matrix_at(table, 1, 1), 0, 1);
+    mpq_set_si(matrix_at(table, 1, 2), 0, 1);
+    mpq_set_si(matrix_at(table, 1, 3), 0, 1);
+    mpq_set_si(matrix_at(table, 1, 4), 4, 1);
+
+    mpq_set_si(matrix_at(table, 2, 0), 0, 1);
+    mpq_set_si(matrix_at(table, 2, 1), 1, 1);
+    mpq_set_si(matrix_at(table, 2, 2), 0, 1);
+    mpq_set_si(matrix_at(table, 2, 3), 0, 1);
+    mpq_set_si(matrix_at(table, 2, 4), 4, 1);
+
+    mpq_set_si(matrix_at(table, 3, 0), 0, 1);
+    mpq_set_si(matrix_at(table, 3, 1), 0, 1);
+    mpq_set_si(matrix_at(table, 3, 2), 1, 1);
+    mpq_set_si(matrix_at(table, 3, 3), 0, 1);
+    mpq_set_si(matrix_at(table, 3, 4), 4, 1);
+
+    mpq_set_si(matrix_at(table, 4, 0), 0, 1);
+    mpq_set_si(matrix_at(table, 4, 1), 0, 1);
+    mpq_set_si(matrix_at(table, 4, 2), 0, 1);
+    mpq_set_si(matrix_at(table, 4, 3), 1, 1);
+    mpq_set_si(matrix_at(table, 4, 4), 4, 1);
+
+    mpq_set_si(matrix_at(table, 5, 0), -1, 2);
+    mpq_set_si(matrix_at(table, 5, 1), 0, 1);
+    mpq_set_si(matrix_at(table, 5, 2), 1, 2);
+    mpq_set_si(matrix_at(table, 5, 3), 0, 1);
+    mpq_set_si(matrix_at(table, 5, 4), 1, 1);
+
+    lp_solve(x, table, 4, 1);
+
+    exit(0);
+}
+
 int main(int argc, char** argv) {
     FILE* stream = stdin;
 
@@ -44,11 +89,11 @@ int main(int argc, char** argv) {
     }
 
     long dimensions;
-    mpq_t *basis;
-    mpq_t *lower;
-    mpq_t *upper;
+    matrix_t* basis;
+    matrix_t* lower;
+    matrix_t* upper;
 
-    if (!parse_data(stream, &dimensions, &basis, &lower, &upper)) {
+    if (!parse_data(stream, &basis, &lower, &upper)) {
         fprintf(stderr, "error parsing file %s\n", argc >= 2 ? argv[1] : "(stdin)");
         exit(1);
     }
@@ -56,15 +101,16 @@ int main(int argc, char** argv) {
     fclose(stream);
 
     long count = 0;
-    mpq_t (*results)[dimensions] = NULL;
+    matrix_t** results = NULL;
 
     long threads = sysconf(_SC_NPROCESSORS_ONLN);
+    // long threads = 1;
 
     struct timespec start;
     struct timespec end;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    enumerate(dimensions, (void*) basis, (void*) lower, (void*) upper, &count, &results, threads);
+    enumerate(basis, lower, upper, &count, &results, threads);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     long elapsed_h;
@@ -74,19 +120,23 @@ int main(int argc, char** argv) {
 
     get_duration(&start, &end, NULL, &elapsed_h, &elapsed_m, &elapsed_s, &elapsed_ms, NULL, NULL);
 
-    mat_print(count, dimensions, results, stdout);
+    for (long i = 0; i < count; ++i) {
+        matrix_print_t(stdout, results[i]);
+        printf("\n");
+    }
+
     printf("\n");
     printf("elapsed: %02ld:%02ld:%02ld.%03ld\n", elapsed_h, elapsed_m, elapsed_s, elapsed_ms);
     printf("count:   %ld\n", count);
 
-    mat_clear(dimensions, dimensions, (void*) basis);
-    vec_clear(dimensions, lower);
-    vec_clear(dimensions, upper);
-    mat_clear(count, dimensions, results);
+    matrix_free(basis);
+    matrix_free(lower);
+    matrix_free(upper);
 
-    free(basis);
-    free(lower);
-    free(upper);
+    for (long i = 0; i < count; ++i) {
+        matrix_free(results[i]);
+    }
+
     free(results);
 
     return 0;
