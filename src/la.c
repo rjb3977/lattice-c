@@ -8,6 +8,10 @@
 
 #include "la.h"
 
+#ifndef NDEBUG
+size_t max_size;
+#endif
+
 struct matrix_s {
     mpq_t* _data;
     long _stride;

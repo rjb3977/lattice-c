@@ -103,8 +103,11 @@ int main(int argc, char** argv) {
     long count = 0;
     matrix_t** results = NULL;
 
+#ifndef NDEBUG
+    long threads = 1;
+#else
     long threads = sysconf(_SC_NPROCESSORS_ONLN);
-    // long threads = 1;
+#endif
 
     struct timespec start;
     struct timespec end;
@@ -138,6 +141,8 @@ int main(int argc, char** argv) {
     }
 
     free(results);
+
+    printf("max size: %lu\n", max_size);
 
     return 0;
 }

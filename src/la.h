@@ -5,6 +5,34 @@
 #include <stdio.h>
 #include <gmp.h>
 
+#ifndef NDEBUG
+extern size_t max_size;
+
+#undef mpq_add
+#undef mpq_sub
+#undef mpq_mul
+#undef mpq_div
+
+#define __mpq_max_size(a, b, c, f)  do { \
+                                        size_t sbn = mpz_sizeinbase(mpq_numref(b), 2); size_t sbd = mpz_sizeinbase(mpq_denref(b), 2); \
+                                        size_t scn = mpz_sizeinbase(mpq_numref(c), 2); size_t scd = mpz_sizeinbase(mpq_denref(c), 2); \
+                                        f(a, b, c); \
+                                        size_t san = mpz_sizeinbase(mpq_numref(a), 2); size_t sad = mpz_sizeinbase(mpq_denref(a), 2); \
+                                        if (san > max_size) max_size = san; \
+                                        if (sad > max_size) max_size = sad; \
+                                        if (sbn > max_size) max_size = sbn; \
+                                        if (sbd > max_size) max_size = sbd; \
+                                        if (scn > max_size) max_size = scn; \
+                                        if (scd > max_size) max_size = scd; \
+                                    } while(0)
+
+#define mpq_add(a, b, c) __mpq_max_size(a, b, c, __gmpq_add)
+#define mpq_sub(a, b, c) __mpq_max_size(a, b, c, __gmpq_sub)
+#define mpq_mul(a, b, c) __mpq_max_size(a, b, c, __gmpq_mul)
+#define mpq_div(a, b, c) __mpq_max_size(a, b, c, __gmpq_div)
+
+#endif
+
 typedef struct matrix_s matrix_t;
 
 long matrix_rows(const matrix_t* src);
